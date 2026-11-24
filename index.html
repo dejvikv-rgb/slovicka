@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="cs" class="antialiased">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Slovíčka & Kartičky</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'media',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    /* Plynulé 3D otočení kartičky */
+    .perspective-1000 {
+      perspective: 1000px;
+    }
+    .transform-style-3d {
+      transform-style: preserve-3d;
+    }
+    .backface-hidden {
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    .rotate-y-180 {
+      transform: rotateY(180deg);
+    }
+    /* Skrytí posuvníku u lišty písmen na mobilu */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen font-sans selection:bg-indigo-500 selection:text-white">
+
+  <!-- Horní lišta -->
+  <header class="sticky top-0 z-30 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+          A–Z
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold tracking-tight leading-tight">Slovíčka & Kartičky</h1>
+          <p id="header-stats" class="text-xs text-slate-500 dark:text-slate-400">0 slovíček v databázi</p>
+        </div>
+      </div>
+
+      <!-- Akční tlačítka: Hromadný import & Export -->
+      <div class="flex items-center gap-2">
+        <button
+          id="btn-open-import"
+          type="button"
+          class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:text-indigo-300 dark:hover:bg-indigo-900/70 border border-indigo-200/70 dark:border-indigo-800/70 transition cursor-pointer"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <span>Import z poznámek</span>
+        </button>
+
+        <button
+          id="btn-open-export"
+          type="button"
+          class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          <span>Export / Záloha</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hlavní obsah -->
+  <main class="max-w-4xl mx-auto px-4 sm:px-6 py-5 space-y-5">
+
+    <!-- Toast / Notifikační lišta (náhrada za alert/confirm) -->
+    <div id="toast-container" class="fixed bottom-4 right-4 left-4 sm:left-auto sm:w-96 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Rychlé přidání nového slovíčka -->
+    <section class="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+          Přidat nové slovíčko (automaticky seřadí A–Z)
+        </h2>
+        <span id="duplicate-hint" class="hidden text-xs font-medium px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300/60 dark:border-amber-800">
+          Už v seznamu existuje!
+        </span>
+      </div>
+
+      <form id="add-word-form" class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+        <div class="sm:col-span-5 relative">
+          <input
+            id="input-en"
+            type="text"
+            autocomplete="off"
+            placeholder="Anglicky (např. composure)"
+            class="w-full px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+            required
+          />
+        </div>
+        <div class="sm:col-span-5">
+          <input
+            id="input-cs"
+            type="text"
+            autocomplete="off"
+            placeholder="Česky (např. klid, rozvaha)"
+            class="w-full px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+            required
+          />
+        </div>
+        <div class="sm:col-span-2">
+          <button
+            type="submit"
+            class="w-full h-full px-4 py-2.5 text-sm font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white shadow-sm transition cursor-pointer flex items-center justify-center gap-1.5"
+          >
+            <span>Přidat</span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Vyhledávání + Přepínač záložek -->
+    <section class="space-y-3">
+      <div class="flex flex-col sm:flex-row gap-3">
+        <!-- Okamžité vyhledávací pole -->
+        <div class="relative flex-1">
+          <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+          </svg>
+          <input
+            id="search-input"
+            type="text"
+            autocomplete="off"
+            placeholder="Hledat slovíčko nebo překlad..."
+            class="w-full pl-10 pr-9 py-2.5 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition"
+          />
+          <button
+            id="btn-clear-search"
+            type="button"
+            title="Vymazat hledání"
+            class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Záložky: Seznam vs. Kartičky -->
+        <div class="inline-flex p-1 rounded-xl bg-slate-200/70 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 self-start sm:self-auto">
+          <button
+            id="tab-list"
+            type="button"
+            class="px-4 py-1.5 text-sm font-semibold rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm transition cursor-pointer"
+          >
+            Seznam (A–Z)
+          </button>
+          <button
+            id="tab-cards"
+            type="button"
+            class="px-4 py-1.5 text-sm font-semibold rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
+          >
+            Kartičky
+          </button>
+        </div>
+      </div>
+
+      <!-- Banner pro ukázková slovíčka (zobrazí se jen pokud jsou stále přítomna) -->
+      <div id="sample-banner" class="hidden flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-900/60 text-xs text-indigo-800 dark:text-indigo-300">
+        <span>V seznamu je 5 ukázkových slovíček ze sportovní psychologie pro vyzkoušení.</span>
+        <button id="btn-clear-samples" type="button" class="font-semibold underline hover:no-underline cursor-pointer">
+          Smazat ukázková slovíčka
+        </button>
+      </div>
+    </section>
+
+    <!-- ZÁLOŽKA 1: SEZNAM (A–Z) -->
+    <section id="view-list" class="space-y-3">
+      <!-- Rychlý abecední filtr -->
+      <div id="alphabet-bar" class="flex items-center gap-1 overflow-x-auto no-scrollbar pb-1">
+        <!-- Generováno dynamicky přes JS -->
+      </div>
+
+      <!-- Kontejner seznamu -->
+      <div id="words-list-container" class="space-y-4">
+        <!-- Generováno dynamicky přes JS -->
+      </div>
+
+      <!-- Prázdný stav -->
+      <div id="empty-state" class="hidden bg-white dark:bg-slate-900 rounded-2xl p-8 text-center border border-slate-200 dark:border-slate-800">
+        <p class="text-sm font-medium text-slate-700 dark:text-slate-300">Žádná slovíčka nenalezena.</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Přidej první slovíčko nahoře nebo klikni na „Import z poznámek“.</p>
+      </div>
+    </section>
+
+    <!-- ZÁLOŽKA 2: KARTIČKY (FLASHCARDS) -->
+    <section id="view-cards" class="hidden space-y-4">
+      <!-- Ovládací lišta kartiček -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-3.5 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <select
+            id="flashcard-filter"
+            class="px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+          >
+            <option value="all">Všechna slovíčka</option>
+            <option value="unmastered">Jen neosvojená (k procvičení)</option>
+          </select>
+
+          <button
+            id="btn-shuffle-cards"
+            type="button"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Zamíchat</span>
+          </button>
+        </div>
+
+        <div class="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+          <span id="flashcard-counter" class="font-semibold text-slate-700 dark:text-slate-200">0 / 0</span>
+          <button id="btn-reset-mastered" type="button" class="underline hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer">
+            Resetovat pokrok
+          </button>
+        </div>
+      </div>
+
+      <!-- Samotná 3D otočná kartička -->
+      <div id="flashcard-stage" class="perspective-1000">
+        <div
+          id="flashcard-inner"
+          class="relative w-full min-h-[260px] sm:min-h-[300px] transition-transform duration-500 transform-style-3d cursor-pointer select-none"
+        >
+          <!-- Přední strana (Anglicky) -->
+          <div class="absolute inset-0 backface-hidden bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-10 border border-slate-200 dark:border-slate-800 shadow-md flex flex-col items-center justify-between text-center">
+            <div class="w-full flex items-center justify-between text-xs text-slate-400">
+              <span class="uppercase tracking-wider font-semibold">Anglicky</span>
+              <span id="card-status-badge" class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                Nové
+              </span>
+            </div>
+
+            <div class="my-auto py-4 flex flex-col items-center gap-3">
+              <p id="card-front-text" class="text-2xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white break-words max-w-full">
+                —
+              </p>
+              <button
+                id="btn-card-speak"
+                type="button"
+                title="Přehrát výslovnost"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:text-indigo-300 transition cursor-pointer"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                </svg>
+                <span>Výslovnost</span>
+              </button>
+            </div>
+
+            <p class="text-xs text-slate-400">Klikni na kartičku (nebo mezerník) pro otočení</p>
+          </div>
+
+          <!-- Zadní strana (Česky) -->
+          <div class="absolute inset-0 backface-hidden rotate-y-180 bg-indigo-600 dark:bg-indigo-950 text-white rounded-3xl p-6 sm:p-10 border border-indigo-500 dark:border-indigo-800 shadow-md flex flex-col items-center justify-between text-center">
+            <div class="w-full flex items-center justify-between text-xs text-indigo-200">
+              <span class="uppercase tracking-wider font-semibold">Český překlad</span>
+              <span id="card-back-en-hint" class="font-medium opacity-80"></span>
+            </div>
+
+            <div class="my-auto py-4">
+              <p id="card-back-text" class="text-2xl sm:text-4xl font-bold tracking-tight break-words max-w-full">
+                —
+              </p>
+            </div>
+
+            <p class="text-xs text-indigo-200">Klikni pro otočení zpět</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Prázdný stav pro kartičky -->
+      <div id="flashcard-empty" class="hidden bg-white dark:bg-slate-900 rounded-3xl p-10 text-center border border-slate-200 dark:border-slate-800">
+        <p class="text-base font-semibold text-slate-800 dark:text-slate-200">Všechna slovíčka v tomto filtru máš hotová!</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Přepni filtr na „Všechna slovíčka“ nebo resetuj pokrok.</p>
+      </div>
+
+      <!-- Tlačítka navigace a hodnocení kartiček -->
+      <div id="flashcard-controls" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <button
+          id="btn-prev-card"
+          type="button"
+          class="px-4 py-3 text-sm font-medium rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 transition cursor-pointer"
+        >
+          ← Předchozí
+        </button>
+
+        <button
+          id="btn-mark-again"
+          type="button"
+          class="px-4 py-3 text-sm font-semibold rounded-xl bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800/70 transition cursor-pointer"
+        >
+          Procvičit znovu
+        </button>
+
+        <button
+          id="btn-mark-known"
+          type="button"
+          class="px-4 py-3 text-sm font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition cursor-pointer"
+        >
+          ✓ Umím
+        </button>
+
+        <button
+          id="btn-next-card"
+          type="button"
+          class="px-4 py-3 text-sm font-medium rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 transition cursor-pointer"
+        >
+          Další →
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL: HROMADNÝ IMPORT Z POZNÁMEK -->
+  <div id="modal-import" class="hidden fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="text-lg font-bold">Hromadný import z poznámek</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Zkopíruj sem celý svůj seznam z Apple Poznámek. Každé slovíčko na nový řádek – oddělovač může být pomlčka (<code class="px-1 py-0.5 bg-slate-100 dark:bg-slate-800 rounded">-</code>, <code class="px-1 py-0.5 bg-slate-100 dark:bg-slate-800 rounded">–</code>), dvojtečka (<code class="px-1 py-0.5 bg-slate-100 dark:bg-slate-800 rounded">:</code>), rovnítko (<code class="px-1 py-0.5 bg-slate-100 dark:bg-slate-800 rounded">=</code>) nebo tabulátor.
+          </p>
+        </div>
+        <button id="btn-close-import" type="button" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <textarea
+        id="import-textarea"
+        rows="8"
+        placeholder="Příklad:&#10;resilience - odolnost, houževnatost&#10;composure – klid, rozvaha&#10;deliberate: záměrný, cílený&#10;mindset = nastavení mysli"
+        class="w-full p-3.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+      ></textarea>
+
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+        <span class="text-xs text-slate-500 dark:text-slate-400">Duplicity se automaticky přeskočí a vše se seřadí A–Z.</span>
+        <div class="flex items-center gap-2 ml-auto">
+          <button
+            id="btn-cancel-import"
+            type="button"
+            class="px-4 py-2 text-sm font-medium rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
+          >
+            Zrušit
+          </button>
+          <button
+            id="btn-confirm-import"
+            type="button"
+            class="px-4 py-2 text-sm font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition cursor-pointer"
+          >
+            Importovat a seřadit
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EXPORT / ZÁLOHA / SPRÁVA DAT -->
+  <div id="modal-export" class="hidden fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="text-lg font-bold">Export a záloha slovíček</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Slovíčka se ukládají přímo do paměti tohoto prohlížeče. Tady si je můžeš kdykoli zálohovat nebo zkopírovat.
+          </p>
+        </div>
+        <button id="btn-close-export" type="button" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="space-y-2.5">
+        <button
+          id="btn-copy-clipboard"
+          type="button"
+          class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 transition cursor-pointer"
+        >
+          <span>Kopírovat celý seznam (A–Z) do schránky</span>
+          <span class="text-xs text-indigo-600 dark:text-indigo-400 font-semibold">Kopírovat</span>
+        </button>
+
+        <button
+          id="btn-download-csv"
+          type="button"
+          class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 transition cursor-pointer"
+        >
+          <span>Stáhnout jako CSV (Excel / Quizlet)</span>
+          <span class="text-xs text-indigo-600 dark:text-indigo-400 font-semibold">.csv</span>
+        </button>
+
+        <button
+          id="btn-download-json"
+          type="button"
+          class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 transition cursor-pointer"
+        >
+          <span>Stáhnout kompletní zálohu (JSON)</span>
+          <span class="text-xs text-indigo-600 dark:text-indigo-400 font-semibold">.json</span>
+        </button>
+      </div>
+
+      <!-- Nebezpečná zóna: Smazat vše s potvrzením na dvě kliknutí -->
+      <div class="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <span class="text-xs text-slate-500">Chceš začít úplně od nuly?</span>
+        <button
+          id="btn-delete-all"
+          type="button"
+          data-confirm="false"
+          class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-900 transition cursor-pointer"
+        >
+          Vymazat všechna slovíčka
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ÚPRAVA SLOVÍČKA -->
+  <div id="modal-edit" class="hidden fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-bold">Upravit slovíčko</h3>
+        <button id="btn-close-edit" type="button" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <form id="edit-word-form" class="space-y-3">
+        <input type="hidden" id="edit-word-id" />
+        <div>
+          <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Anglicky</label>
+          <input
+            id="edit-input-en"
+            type="text"
+            required
+            class="w-full px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Česky</label>
+          <input
+            id="edit-input-cs"
+            type="text"
+            required
+            class="w-full px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button
+            id="btn-cancel-edit"
+            type="button"
+            class="px-4 py-2 text-sm font-medium rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
+          >
+            Zrušit
+          </button>
+          <button
+            type="submit"
+            class="px-4 py-2 text-sm font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition cursor-pointer"
+          >
+            Uložit změny
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * Slovíčka & Kartičky – Správce osobní slovní zásoby
+     * Ukládá data lokálně v prohlížeči pod klíčem 'vocab_app_words_v1'.
+     */
+    const STORAGE_KEY = 'vocab_app_words_v1';
+
+    // Výchozí ukázková slovíčka ze sportovní psychologie při prvním spuštění
+    const SAMPLE_WORDS = [
+      { id: 'sample-1', en: 'adversity', cs: 'nepřízeň osudu, těžkosti, překážky', mastered: false, isSample: true },
+      { id: 'sample-2', en: 'composure', cs: 'klid, rozvaha, vyrovnanost pod tlakem', mastered: false, isSample: true },
+      { id: 'sample-3', en: 'deliberate', cs: 'záměrný, cílený, promyšlený', mastered: false, isSample: true },
+      { id: 'sample-4', en: 'plateau', cs: 'stagnace, ustálená úroveň výkonu', mastered: false, isSample: true },
+      { id: 'sample-5', en: 'resilience', cs: 'odolnost, psychická houževnatost', mastered: false, isSample: true }
+    ];
+
+    // Stav aplikace
+    let words = [];
+    let currentTab = 'list'; // 'list' | 'cards'
+    let searchQuery = '';
+    let selectedLetter = 'ALL';
+
+    // Stav kartiček
+    let flashcardDeck = [];
+    let currentCardIndex = 0;
+    let isCardFlipped = false;
+
+    // Reference na DOM prvky
+    const elHeaderStats = document.getElementById('header-stats');
+    const elAddForm = document.getElementById('add-word-form');
+    const elInputEn = document.getElementById('input-en');
+    const elInputCs = document.getElementById('input-cs');
+    const elDuplicateHint = document.getElementById('duplicate-hint');
+
+    const elSearchInput = document.getElementById('search-input');
+    const elBtnClearSearch = document.getElementById('btn-clear-search');
+    const elSampleBanner = document.getElementById('sample-banner');
+
+    const elTabList = document.getElementById('tab-list');
+    const elTabCards = document.getElementById('tab-cards');
+    const elViewList = document.getElementById('view-list');
+    const elViewCards = document.getElementById('view-cards');
+
+    const elAlphabetBar = document.getElementById('alphabet-bar');
+    const elWordsListContainer = document.getElementById('words-list-container');
+    const elEmptyState = document.getElementById('empty-state');
+
+    // Kartičky DOM
+    const elFlashcardFilter = document.getElementById('flashcard-filter');
+    const elFlashcardCounter = document.getElementById('flashcard-counter');
+    const elFlashcardStage = document.getElementById('flashcard-stage');
+    const elFlashcardInner = document.getElementById('flashcard-inner');
+    const elFlashcardEmpty = document.getElementById('flashcard-empty');
+    const elFlashcardControls = document.getElementById('flashcard-controls');
+    const elCardFrontText = document.getElementById('card-front-text');
+    const elCardBackText = document.getElementById('card-back-text');
+    const elCardBackEnHint = document.getElementById('card-back-en-hint');
+    const elCardStatusBadge = document.getElementById('card-status-badge');
+
+    // Modály DOM
+    const elModalImport = document.getElementById('modal-import');
+    const elImportTextarea = document.getElementById('import-textarea');
+    const elModalExport = document.getElementById('modal-export');
+    const elModalEdit = document.getElementById('modal-edit');
+
+    /**
+     * Zobrazí nenápadnou zprávu v rohu obrazovky (bez použití alert())
+     */
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      const colors = {
+        success: 'bg-emerald-600 text-white border-emerald-500',
+        warning: 'bg-amber-600 text-white border-amber-500',
+        error: 'bg-rose-600 text-white border-rose-500',
+        info: 'bg-slate-900 dark:bg-slate-800 text-white border-slate-700'
+      };
+      toast.className = `pointer-events-auto px-4 py-3 rounded-xl text-xs sm:text-sm font-medium shadow-lg border transition-all duration-300 transform translate-y-2 opacity-0 ${colors[type] || colors.info}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    /**
+     * Abecední řazení celého seznamu podle anglického výrazu (A–Z, bez ohledu na velikost písmen)
+     */
+    function sortWordsAlphabetically() {
+      words.sort((a, b) => a.en.localeCompare(b.en, 'en', { sensitivity: 'base' }));
+    }
+
+    /**
+     * Načtení dat z LocalStorage nebo inicializace ukázkovými slovíčky
+     */
+    function loadWords() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw === null) {
+          words = [...SAMPLE_WORDS];
+          saveWords();
+        } else {
+          const parsed = JSON.parse(raw);
+          words = Array.isArray(parsed) ? parsed : [];
+        }
+      } catch (e) {
+        console.error('Chyba při čtení z LocalStorage:', e);
+        words = [];
+      }
+      sortWordsAlphabetically();
+    }
+
+    /**
+     * Uložení dat do LocalStorage
+     */
+    function saveWords() {
+      try {
+        sortWordsAlphabetically();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(words));
+      } catch (e) {
+        console.error('Chyba při ukládání do LocalStorage:', e);
+        showToast('Nepodařilo se uložit změny do prohlížeče.', 'error');
+      }
+    }
+
+    /**
+     * Přečte anglické slovíčko nahlas pomocí Web Speech API
+     */
+    function speakEnglish(text) {
+      if (!('speechSynthesis' in window)) {
+        showToast('Tvůj prohlížeč nepodporuje hlasové předčítání.', 'warning');
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      utterance.rate = 0.92;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    /**
+     * Escapování HTML proti XSS
+     */
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    /**
+     * Aktualizuje horní statistiku a banner ukázkových slovíček
+     */
+    function updateHeaderAndBanners() {
+      const total = words.length;
+      const masteredCount = words.filter(w => w.mastered).length;
+      elHeaderStats.textContent = `${total} ${total === 1 ? 'slovíčko' : (total >= 2 && total <= 4 ? 'slovíčka' : 'slovíček')} • ${masteredCount} osvojených`;
+
+      const hasSamples = words.some(w => w.isSample);
+      elSampleBanner.classList.toggle('hidden', !hasSamples);
+    }
+
+    /**
+     * Vykreslí lištu s písmeny abecedy pro rychlé filtrování
+     */
+    function renderAlphabetBar() {
+      const availableLetters = new Set(
+        words.map(w => {
+          const first = w.en.trim().charAt(0).toUpperCase();
+          return /[A-Z]/.test(first) ? first : '#';
+        })
+      );
+
+      if (selectedLetter !== 'ALL' && !availableLetters.has(selectedLetter)) {
+        selectedLetter = 'ALL';
+      }
+
+      const letters = ['ALL', ...Array.from(availableLetters).sort()];
+      elAlphabetBar.innerHTML = letters.map(letter => {
+        const isActive = selectedLetter === letter;
+        const label = letter === 'ALL' ? 'Vše' : letter;
+        const activeClasses = isActive
+          ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800';
+        return `<button type="button" data-letter="${letter}" class="px-2.5 py-1 text-xs font-semibold rounded-lg border transition shrink-0 cursor-pointer ${activeClasses}">${label}</button>`;
+      }).join('');
+    }
+
+    /**
+     * Vykreslí abecedně seřazený seznam slovíček s ohledem na vyhledávání a písmeno
+     */
+    function renderWordList() {
+      updateHeaderAndBanners();
+      renderAlphabetBar();
+
+      const query = searchQuery.trim().toLowerCase();
+      const filtered = words.filter(w => {
+        const matchesSearch = !query || w.en.toLowerCase().includes(query) || w.cs.toLowerCase().includes(query);
+        const firstLetter = w.en.trim().charAt(0).toUpperCase();
+        const normalizedLetter = /[A-Z]/.test(firstLetter) ? firstLetter : '#';
+        const matchesLetter = selectedLetter === 'ALL' || normalizedLetter === selectedLetter;
+        return matchesSearch && matchesLetter;
+      });
+
+      if (filtered.length === 0) {
+        elWordsListContainer.innerHTML = '';
+        elEmptyState.classList.remove('hidden');
+        return;
+      }
+
+      elEmptyState.classList.add('hidden');
+
+      // Seskupení podle počátečního písmene
+      const groups = {};
+      filtered.forEach(word => {
+        const first = word.en.trim().charAt(0).toUpperCase();
+        const key = /[A-Z]/.test(first) ? first : '#';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(word);
+      });
+
+      const sortedKeys = Object.keys(groups).sort();
+
+      elWordsListContainer.innerHTML = sortedKeys.map(letter => {
+        const itemsHtml = groups[letter].map(w => `
+          <div class="group flex items-center justify-between gap-3 px-4 py-3 bg-white dark:bg-slate-900 hover:bg-slate-50/90 dark:hover:bg-slate-800/60 transition">
+            <div class="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-baseline sm:gap-3">
+              <div class="flex items-center gap-2">
+                <span class="font-semibold text-sm sm:text-base text-slate-900 dark:text-white break-words">${escapeHtml(w.en)}</span>
+                ${w.mastered ? '<span title="Osvojeno" class="inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>' : ''}
+              </div>
+              <span class="hidden sm:inline text-slate-300 dark:text-slate-700">—</span>
+              <span class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 break-words">${escapeHtml(w.cs)}</span>
+            </div>
+
+            <div class="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                data-action="speak"
+                data-en="${escapeHtml(w.en)}"
+                title="Výslovnost"
+                class="p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition cursor-pointer"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                </svg>
+              </button>
+
+              <button
+                type="button"
+                data-action="edit"
+                data-id="${w.id}"
+                title="Upravit"
+                class="p-2 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+
+              <button
+                type="button"
+                data-action="delete"
+                data-id="${w.id}"
+                title="Smazat"
+                class="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/60 transition cursor-pointer"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        `).join('');
+
+        return `
+          <div class="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xs">
+            <div class="px-4 py-1.5 bg-slate-100/90 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400">${letter}</span>
+              <span class="text-[11px] text-slate-400">${groups[letter].length}</span>
+            </div>
+            <div class="divide-y divide-slate-100 dark:divide-slate-800/80">
+              ${itemsHtml}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    /**
+     * Přidání nového slovíčka s kontrolou duplicit
+     */
+    elAddForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const en = elInputEn.value.trim();
+      const cs = elInputCs.value.trim();
+      if (!en || !cs) return;
+
+      const existing = words.find(w => w.en.toLowerCase() === en.toLowerCase());
+      if (existing) {
+        showToast(`Slovíčko „${existing.en}“ už v seznamu máš (${existing.cs}).`, 'warning');
+        elSearchInput.value = existing.en;
+        searchQuery = existing.en;
+        elBtnClearSearch.classList.remove('hidden');
+        renderWordList();
+        return;
+      }
+
+      words.push({
+        id: 'w-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+        en,
+        cs,
+        mastered: false,
+        isSample: false
+      });
+
+      saveWords();
+      elInputEn.value = '';
+      elInputCs.value = '';
+      elDuplicateHint.classList.add('hidden');
+      elInputEn.focus();
+
+      renderWordList();
+      if (currentTab === 'cards') buildFlashcardDeck(false);
+      showToast(`Přidáno a seřazeno: ${en}`, 'success');
+    });
+
+    /**
+     * Živá kontrola při psaní nového slovíčka, zda už v seznamu neexistuje
+     */
+    elInputEn.addEventListener('input', () => {
+      const val = elInputEn.value.trim().toLowerCase();
+      if (!val) {
+        elDuplicateHint.classList.add('hidden');
+        return;
+      }
+      const match = words.find(w => w.en.toLowerCase() === val);
+      if (match) {
+        elDuplicateHint.textContent = `Už existuje: ${match.en} – ${match.cs}`;
+        elDuplicateHint.classList.remove('hidden');
+      } else {
+        elDuplicateHint.classList.add('hidden');
+      }
+    });
+
+    /**
+     * Okamžité vyhledávání v celém seznamu
+     */
+    elSearchInput.addEventListener('input', () => {
+      searchQuery = elSearchInput.value;
+      elBtnClearSearch.classList.toggle('hidden', !searchQuery);
+      renderWordList();
+    });
+
+    elBtnClearSearch.addEventListener('click', () => {
+      searchQuery = '';
+      elSearchInput.value = '';
+      elBtnClearSearch.classList.add('hidden');
+      renderWordList();
+    });
+
+    /**
+     * Kliknutí na abecední lištu
+     */
+    elAlphabetBar.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-letter]');
+      if (!btn) return;
+      selectedLetter = btn.dataset.letter;
+      renderWordList();
+    });
+
+    /**
+     * Akce na řádcích seznamu (výslovnost, úprava, smazání)
+     */
+    elWordsListContainer.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const action = btn.dataset.action;
+
+      if (action === 'speak') {
+        speakEnglish(btn.dataset.en);
+      } else if (action === 'delete') {
+        const id = btn.dataset.id;
+        const target = words.find(w => w.id === id);
+        words = words.filter(w => w.id !== id);
+        saveWords();
+        renderWordList();
+        if (currentTab === 'cards') buildFlashcardDeck(false);
+        if (target) showToast(`Smazáno: ${target.en}`, 'info');
+      } else if (action === 'edit') {
+        const id = btn.dataset.id;
+        const target = words.find(w => w.id === id);
+        if (!target) return;
+        document.getElementById('edit-word-id').value = target.id;
+        document.getElementById('edit-input-en').value = target.en;
+        document.getElementById('edit-input-cs').value = target.cs;
+        elModalEdit.classList.remove('hidden');
+      }
+    });
+
+    /**
+     * Uložení úpravy slovíčka
+     */
+    document.getElementById('edit-word-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const id = document.getElementById('edit-word-id').value;
+      const newEn = document.getElementById('edit-input-en').value.trim();
+      const newCs = document.getElementById('edit-input-cs').value.trim();
+      if (!newEn || !newCs) return;
+
+      const idx = words.findIndex(w => w.id === id);
+      if (idx !== -1) {
+        words[idx].en = newEn;
+        words[idx].cs = newCs;
+        words[idx].isSample = false;
+        saveWords();
+        renderWordList();
+        if (currentTab === 'cards') buildFlashcardDeck(false);
+        showToast('Slovíčko upraveno a seřazeno.', 'success');
+      }
+      elModalEdit.classList.add('hidden');
+    });
+
+    document.getElementById('btn-close-edit').addEventListener('click', () => elModalEdit.classList.add('hidden'));
+    document.getElementById('btn-cancel-edit').addEventListener('click', () => elModalEdit.classList.add('hidden'));
+
+    /**
+     * Smazání ukázkových slovíček
+     */
+    document.getElementById('btn-clear-samples').addEventListener('click', () => {
+      words = words.filter(w => !w.isSample);
+      saveWords();
+      renderWordList();
+      if (currentTab === 'cards') buildFlashcardDeck(false);
+      showToast('Ukázková slovíčka byla odstraněna.', 'info');
+    });
+
+    /**
+     * HROMADNÝ IMPORT Z POZNÁMEK
+     */
+    document.getElementById('btn-open-import').addEventListener('click', () => {
+      elModalImport.classList.remove('hidden');
+      elImportTextarea.focus();
+    });
+    document.getElementById('btn-close-import').addEventListener('click', () => elModalImport.classList.add('hidden'));
+    document.getElementById('btn-cancel-import').addEventListener('click', () => elModalImport.classList.add('hidden'));
+
+    document.getElementById('btn-confirm-import').addEventListener('click', () => {
+      const rawText = elImportTextarea.value;
+      if (!rawText.trim()) {
+        showToast('Vlož nejprve text se slovíčky.', 'warning');
+        return;
+      }
+
+      const lines = rawText.split(/\r?\n/);
+      let addedCount = 0;
+      let skippedCount = 0;
+
+      // Podpora oddělovačů: tabulátor, dlouhá/krátká pomlčka, dvojtečka, rovnítko
+      const separatorRegex = /\t|\s+[–—-]\s+|(?<=[a-zA-Z0-9)])\s*[:=–—-]\s*/;
+
+      lines.forEach(line => {
+        const cleanedLine = line.replace(/^[-*•\d.)\s]+/, '').trim();
+        if (!cleanedLine) return;
+
+        const parts = cleanedLine.split(separatorRegex);
+        if (parts.length < 2) return;
+
+        const en = parts[0].trim();
+        const cs = parts.slice(1).join(' - ').trim();
+        if (!en || !cs) return;
+
+        const exists = words.some(w => w.en.toLowerCase() === en.toLowerCase());
+        if (exists) {
+          skippedCount++;
+          return;
+        }
+
+        words.push({
+          id: 'imp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+          en,
+          cs,
+          mastered: false,
+          isSample: false
+        });
+        addedCount++;
+      });
+
+      if (addedCount > 0) {
+        saveWords();
+        renderWordList();
+        if (currentTab === 'cards') buildFlashcardDeck(false);
+      }
+
+      elImportTextarea.value = '';
+      elModalImport.classList.add('hidden');
+      showToast(`Importováno ${addedCount} nových slovíček (přeskočeno ${skippedCount} duplicit).`, addedCount > 0 ? 'success' : 'info');
+    });
+
+    /**
+     * EXPORT / ZÁLOHA / SMAZÁNÍ VŠEHO
+     */
+    document.getElementById('btn-open-export').addEventListener('click', () => {
+      const btnDel = document.getElementById('btn-delete-all');
+      btnDel.dataset.confirm = 'false';
+      btnDel.textContent = 'Vymazat všechna slovíčka';
+      elModalExport.classList.remove('hidden');
+    });
+    document.getElementById('btn-close-export').addEventListener('click', () => elModalExport.classList.add('hidden'));
+
+    // Kopírování do schránky pomocí spolehlivého execCommand('copy')
+    document.getElementById('btn-copy-clipboard').addEventListener('click', () => {
+      if (words.length === 0) {
+        showToast('Seznam je prázdný.', 'warning');
+        return;
+      }
+      const formatted = words.map(w => `${w.en} – ${w.cs}`).join('\n');
+      const tempArea = document.createElement('textarea');
+      tempArea.value = formatted;
+      tempArea.style.position = 'fixed';
+      tempArea.style.opacity = '0';
+      document.body.appendChild(tempArea);
+      tempArea.select();
+      try {
+        document.execCommand('copy');
+        showToast('Celý abecední seznam zkopírován do schránky!', 'success');
+      } catch (err) {
+        showToast('Kopírování se nezdařilo.', 'error');
+      }
+      document.body.removeChild(tempArea);
+    });
+
+    // Stažení CSV
+    document.getElementById('btn-download-csv').addEventListener('click', () => {
+      if (words.length === 0) {
+        showToast('Seznam je prázdný.', 'warning');
+        return;
+      }
+      const csvRows = ['Anglicky,Cesky'];
+      words.forEach(w => {
+        const enEsc = `"${w.en.replace(/"/g, '""')}"`;
+        const csEsc = `"${w.cs.replace(/"/g, '""')}"`;
+        csvRows.push(`${enEsc},${csEsc}`);
+      });
+      const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      triggerDownload(blob, 'slovicka_export.csv');
+      showToast('CSV soubor stažen.', 'success');
+    });
+
+    // Stažení JSON
+    document.getElementById('btn-download-json').addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(words, null, 2)], { type: 'application/json' });
+      triggerDownload(blob, 'slovicka_zaloha.json');
+      showToast('JSON záloha stažena.', 'success');
+    });
+
+    function triggerDownload(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Vymazání všech slovíček (dvoukrokové potvrzení bez confirm())
+    document.getElementById('btn-delete-all').addEventListener('click', function () {
+      if (this.dataset.confirm === 'false') {
+        this.dataset.confirm = 'true';
+        this.textContent = 'Klikni znovu pro potvrzení!';
+        return;
+      }
+      words = [];
+      saveWords();
+      renderWordList();
+      if (currentTab === 'cards') buildFlashcardDeck(false);
+      elModalExport.classList.add('hidden');
+      showToast('Všechna slovíčka byla smazána.', 'info');
+    });
+
+    /**
+     * PŘEPÍNÁNÍ ZÁLOŽEK (SEZNAM vs. KARTIČKY)
+     */
+    function switchTab(tab) {
+      currentTab = tab;
+      if (tab === 'list') {
+        elTabList.className = 'px-4 py-1.5 text-sm font-semibold rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm transition cursor-pointer';
+        elTabCards.className = 'px-4 py-1.5 text-sm font-semibold rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition cursor-pointer';
+        elViewList.classList.remove('hidden');
+        elViewCards.classList.add('hidden');
+        renderWordList();
+      } else {
+        elTabCards.className = 'px-4 py-1.5 text-sm font-semibold rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm transition cursor-pointer';
+        elTabList.className = 'px-4 py-1.5 text-sm font-semibold rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition cursor-pointer';
+        elViewCards.classList.remove('hidden');
+        elViewList.classList.add('hidden');
+        buildFlashcardDeck(false);
+      }
+    }
+
+    elTabList.addEventListener('click', () => switchTab('list'));
+    elTabCards.addEventListener('click', () => switchTab('cards'));
+
+    /**
+     * LOGIKA KARTIČEK (FLASHCARDS)
+     */
+    function buildFlashcardDeck(shuffle = false) {
+      const filter = elFlashcardFilter.value;
+      let pool = filter === 'unmastered' ? words.filter(w => !w.mastered) : [...words];
+
+      if (shuffle) {
+        for (let i = pool.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+      }
+
+      flashcardDeck = pool;
+      currentCardIndex = 0;
+      isCardFlipped = false;
+      renderFlashcard();
+    }
+
+    function renderFlashcard() {
+      elFlashcardInner.classList.remove('rotate-y-180');
+      isCardFlipped = false;
+
+      if (flashcardDeck.length === 0) {
+        elFlashcardStage.classList.add('hidden');
+        elFlashcardControls.classList.add('hidden');
+        elFlashcardEmpty.classList.remove('hidden');
+        elFlashcardCounter.textContent = '0 / 0';
+        return;
+      }
+
+      elFlashcardEmpty.classList.add('hidden');
+      elFlashcardStage.classList.remove('hidden');
+      elFlashcardControls.classList.remove('hidden');
+
+      if (currentCardIndex >= flashcardDeck.length) currentCardIndex = 0;
+      if (currentCardIndex < 0) currentCardIndex = flashcardDeck.length - 1;
+
+      const card = flashcardDeck[currentCardIndex];
+      elFlashcardCounter.textContent = `${currentCardIndex + 1} / ${flashcardDeck.length}`;
+      elCardFrontText.textContent = card.en;
+      elCardBackText.textContent = card.cs;
+      elCardBackEnHint.textContent = card.en;
+
+      if (card.mastered) {
+        elCardStatusBadge.textContent = 'Osvojeno ✓';
+        elCardStatusBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300';
+      } else {
+        elCardStatusBadge.textContent = 'K procvičení';
+        elCardStatusBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300';
+      }
+    }
+
+    function flipCard() {
+      if (flashcardDeck.length === 0) return;
+      isCardFlipped = !isCardFlipped;
+      elFlashcardInner.classList.toggle('rotate-y-180', isCardFlipped);
+    }
+
+    elFlashcardInner.addEventListener('click', (e) => {
+      if (e.target.closest('#btn-card-speak')) return;
+      flipCard();
+    });
+
+    document.getElementById('btn-card-speak').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (flashcardDeck[currentCardIndex]) {
+        speakEnglish(flashcardDeck[currentCardIndex].en);
+      }
+    });
+
+    elFlashcardFilter.addEventListener('change', () => buildFlashcardDeck(false));
+    document.getElementById('btn-shuffle-cards').addEventListener('click', () => {
+      buildFlashcardDeck(true);
+      showToast('Kartičky zamíchány.', 'info');
+    });
+
+    document.getElementById('btn-prev-card').addEventListener('click', () => {
+      currentCardIndex--;
+      renderFlashcard();
+    });
+
+    document.getElementById('btn-next-card').addEventListener('click', () => {
+      currentCardIndex++;
+      renderFlashcard();
+    });
+
+    document.getElementById('btn-mark-known').addEventListener('click', () => {
+      const current = flashcardDeck[currentCardIndex];
+      if (!current) return;
+      const target = words.find(w => w.id === current.id);
+      if (target) target.mastered = true;
+      current.mastered = true;
+      saveWords();
+      updateHeaderAndBanners();
+
+      if (elFlashcardFilter.value === 'unmastered') {
+        flashcardDeck.splice(currentCardIndex, 1);
+      } else {
+        currentCardIndex++;
+      }
+      renderFlashcard();
+    });
+
+    document.getElementById('btn-mark-again').addEventListener('click', () => {
+      const current = flashcardDeck[currentCardIndex];
+      if (!current) return;
+      const target = words.find(w => w.id === current.id);
+      if (target) target.mastered = false;
+      current.mastered = false;
+      saveWords();
+      updateHeaderAndBanners();
+      currentCardIndex++;
+      renderFlashcard();
+    });
+
+    document.getElementById('btn-reset-mastered').addEventListener('click', () => {
+      words.forEach(w => (w.mastered = false));
+      saveWords();
+      updateHeaderAndBanners();
+      buildFlashcardDeck(false);
+      showToast('Pokrok u kartiček byl resetován.', 'info');
+    });
+
+    // Klávesové zkratky v režimu kartiček (Mezerník, Šipky vlevo/vpravo)
+    document.addEventListener('keydown', (e) => {
+      if (currentTab !== 'cards') return;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        flipCard();
+      } else if (e.code === 'ArrowRight') {
+        currentCardIndex++;
+        renderFlashcard();
+      } else if (e.code === 'ArrowLeft') {
+        currentCardIndex--;
+        renderFlashcard();
+      }
+    });
+
+    // Zavření modálů kliknutím mimo obsah
+    [elModalImport, elModalExport, elModalEdit].forEach(modal => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
+      });
+    });
+
+    // Start aplikace
+    loadWords();
+    renderWordList();
+  </script>
+</body>
+</html>
